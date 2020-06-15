@@ -175,3 +175,152 @@ sudo git clone https://github.com/rasrivastava/tf_test.git /var/www/html/
 		    }
 		}
 		```
+
+
+- Reference: https://www.terraform.io/docs/providers/aws/r/instance.html
+- Resource: aws_instance
+  - Provides an EC2 instance resource. This allows instances to be created, updated, and deleted.
+    - ami - (Required) The AMI to use for the instance. 
+    - instance_type - (Required) The type of instance to start. Updates to this field will trigger a stop/start of the EC2 instance.
+    - key_name - (Optional) The key name of the Key Pair to use for the instance; which can be managed using the aws_key_pair resource.
+    - security_groups - (Optional, EC2-Classic and default VPC only) A list of security group names (EC2-Classic) or IDs (default VPC) to associate with.
+
+- Reference: https://www.terraform.io/docs/provisioners/file.html
+- provisioner: file
+  - The file provisioner is used to copy files or directories from the machine executing Terraform to the newly created resource. The file provisioner supports both ssh and winrm type connections.
+    - source - (Required) This is the source file or folder.
+    - destination - (Required) This is the destination path.
+
+- Reference: https://www.terraform.io/docs/provisioners/remote-exec.html
+- provisioner: remote-exec
+  - The remote-exec provisioner invokes a script on a remote resource after it is created. This can be used to run a configuration management tool, bootstrap into a cluster, etc.
+    - inline - This is a list of command strings. They are executed in the order they are provided.
+
+	```
+	resource "aws_instance" "MyWebServer" {
+	    depends_on = [
+		aws_security_group.firewall,
+	    ]
+	    ami = var.ami_id
+	    instance_type = "t2.micro"
+	    key_name = var.ssh_key_name
+	    security_groups = [ aws_security_group.firewall.name ]
+	    tags = {
+		Name = var.instance_name
+	    }
+	    connection {
+		type = "ssh"
+		user = "ec2-user"
+		private_key = file("${var.ssh_key_name}.pem")
+		host = aws_instance.MyWebServer.public_ip
+	    }
+	    provisioner "local-exec" {
+		command = "echo ${aws_instance.MyWebServer.public_ip} > instance_public_ip.txt"
+	    }
+	    provisioner "file" {
+		source = "install_pkg_instance.sh"
+		destination = "/tmp/install_pkg_instance.sh"
+	    }
+	    provisioner "remote-exec" {
+		inline = [
+		    "chmod +x /tmp/install_pkg_instance.sh",
+		    "/tmp/install_pkg_instance.sh args",
+		]
+	    }
+	}
+	```
+
+
+- Reference: https://www.terraform.io/docs/providers/aws/r/ebs_volume.html
+- Resource: aws_ebs_volume
+  - size - (Optional) The size of the drive in GiBs.
+
+	```
+	resource "aws_ebs_volume" "hard_disk" {
+	    depends_on = [
+		aws_instance.MyWebServer
+	    ]
+	    availability_zone = aws_instance.MyWebServer.availability_zone
+	    size = 1
+	    tags = {
+		Name = "MyWebServerVolume"
+	  }
+	}
+	```
+
+
+- Reference: https://www.terraform.io/docs/providers/aws/r/volume_attachment.html
+- Resource: aws_volume_attachment
+  - Provides an AWS EBS Volume Attachment as a top level resource, to attach and detach volumes from AWS Instances.
+    - device_name - (Required) The device name to expose to the instance (for example, /dev/sdh or xvdh).
+    - volume_id - (Required) ID of the Volume to be attached
+    - instance_id - (Required) ID of the Instance to attach to
+    - force_detach - (Optional, Boolean) Set to true if you want to force the volume to detach
+
+	```
+	resource "aws_volume_attachment" "ebs_vol_att" {
+	    depends_on = [
+		aws_ebs_volume.hard_disk
+	    ]
+	    device_name = "/dev/sdh"
+	    volume_id   = aws_ebs_volume.hard_disk.id
+	    instance_id = aws_instance.MyWebServer.id
+	    force_detach = true
+	}
+	```
+
+
+- Format and mount the partition to the apache web server root direcrtory
+
+	```
+	resource "null_resource" "attach_ebs_vol" {
+	    depends_on = [
+		aws_volume_attachment.ebs_vol_att
+	    ]
+	    connection {
+		type = "ssh"
+		user = "ec2-user"
+		private_key = file("${var.ssh_key_name}.pem")
+		host = aws_instance.MyWebServer.public_ip
+	    }
+	    provisioner "file" {
+		source = "ebs_vol_operation.sh"
+		destination = "/tmp/ebs_vol_operation.sh"
+	    }
+	    provisioner "remote-exec" {
+		inline = [
+		    "chmod +x /tmp/ebs_vol_operation.sh",
+		    "/tmp/ebs_vol_operation.sh args",
+		]
+	    }
+	}
+	```
+
+- Download the images from the remote
+
+	```
+	resource "null_resource" "remote_img_download" {
+	    depends_on = [
+		null_resource.attach_ebs_vol
+	    ]
+	    provisioner "local-exec" {
+		command = "git clone https://github.com/rasrivastava/tf_test.git web_image"
+	  }
+	}
+	```
+
+
+- Create public-read S3 Bucket
+
+	```
+	resource "aws_s3_bucket" "mys3bucket" {
+	    depends_on = [
+		null_resource.remote_img_download
+	    ]
+	    bucket = "${var.bucket_name}"
+	    acl = "public-read"
+	    tags = {
+	      Name  = "s3_bucket"
+	  }
+	}
+	```
