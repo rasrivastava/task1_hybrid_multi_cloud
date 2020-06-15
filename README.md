@@ -232,7 +232,7 @@ sudo git clone https://github.com/rasrivastava/tf_test.git /var/www/html/
 
 
 - **Reference**: https://www.terraform.io/docs/providers/aws/r/ebs_volume.html
-- **Resource**: aws_ebs_volume
+- **Resource**: *aws_ebs_volume*
   - **size** - (Optional) The size of the drive in GiBs.
 
 	```
@@ -440,9 +440,11 @@ sudo git clone https://github.com/rasrivastava/tf_test.git /var/www/html/
 	}
 	```
 - **To initialize the terraform**
+
   - `$ terraform init`
 
 - **To run the terraform configuration file for creating the complete infrastructure**
+
   `- $ terraform apply -auto-approve`
      - after successfully runnning the above command we will see the below message:
         ```
@@ -459,4 +461,5 @@ sudo git clone https://github.com/rasrivastava/tf_test.git /var/www/html/
   ![alt text](https://github.com/rasrivastava/task1_hybrid_multi_cloud/blob/master/mm2.png)
 
 - **To destry the complete infrastructue, we can run below command**
+
   `$ terraform destroy -auto-approve`
