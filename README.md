@@ -454,7 +454,7 @@ sudo git clone https://github.com/rasrivastava/tf_test.git /var/www/html/
         ```
 - When we run the **13.126.246.125** on the browser
 
-![image info](./home/rasrivas/Pictures/mm1.png)
+![image info](/home/rasrivas/Pictures/mm1.png)
 
 - To destry the complete infrastructue, we can run below command
   `$ terraform destroy -auto-approve`
