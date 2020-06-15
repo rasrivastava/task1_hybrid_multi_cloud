@@ -324,3 +324,136 @@ sudo git clone https://github.com/rasrivastava/tf_test.git /var/www/html/
 	  }
 	}
 	```
+
+
+- Upload the image downloded from the remote github
+
+	```
+	resource "aws_s3_bucket_object" "image_upload" {
+	    depends_on = [
+		aws_s3_bucket.mys3bucket
+	    ]
+	    key = var.object_name
+	    bucket = "${var.bucket_name}"
+	    acl    = "public-read"
+	    source = "web_image/images/82597.jpg"
+	}
+	```
+
+
+- Reference: https://www.terraform.io/docs/configuration/locals.html
+- A local value assigns a name to an expression, allowing it to be used multiple times within a module without repeating it.
+
+	```
+	locals {
+	    s3_origin_id = "S3-${aws_s3_bucket.mys3bucket.bucket}"
+	}
+	```
+
+
+- Reference: https://www.terraform.io/docs/providers/aws/r/cloudfront_distribution.html
+- Resource: aws_cloudfront_distribution
+  - Creates an Amazon CloudFront web distribution.
+    - enabled (Required) - Whether the distribution is enabled to accept end user requests for content.
+    - origin (Required) - One or more origins for this distribution (multiples allowed).
+    - default_cache_behavior (Required) - The default cache behavior for this distribution (maximum one).
+      - allowed_methods (Required) - Controls which HTTP methods CloudFront processes and forwards to your Amazon S3 bucket or your custom origin.
+      - cached_methods (Required) - Controls whether CloudFront caches the response to requests using the specified HTTP methods.
+      - target_origin_id (Required) - The value of ID for the origin that you want CloudFront to route requests to when a request matches the path pattern either for a cache behavior or for the default cache behavior.
+      - forwarded_values (Required) - The forwarded values configuration that specifies how CloudFront handles query strings, cookies and headers (maximum one).
+        - cookies (Required) - The forwarded values cookies that specifies how CloudFront handles cookies (maximum one).
+          - forward (Required) - Specifies whether you want CloudFront to forward cookies to the origin that is associated with this cache behavior. You can specify all, none or whitelist. If whitelist, you must include the subsequent whitelisted_names
+           - query_string (Required) - Indicates whether you want CloudFront to forward query strings to the origin that is associated with this cache behavior.
+      - viewer_protocol_policy (Required) - Use this element to specify the protocol that users can use to access the files in the origin specified by TargetOriginId when a request matches the path pattern in PathPattern. One of allow-all, https-only, or redirect-to-https.
+      - restrictions (Required) - The restriction configuration for this distribution (maximum one).
+        - geo_restriction
+          - restriction_type (Required) - The method that you want to use to restrict distribution of your content by country: none, whitelist, or blacklist.
+      - viewer_certificate (Required) - The SSL configuration for this distribution (maximum one).
+
+	```
+	resource "aws_cloudfront_distribution" "cloudfront" {
+	    depends_on = [
+		aws_s3_bucket_object.image_upload
+	    ]
+	    enabled = true
+	    origin {
+		domain_name = aws_s3_bucket.mys3bucket.bucket_domain_name
+		origin_id = local.s3_origin_id
+	    }
+	    default_cache_behavior {
+		    allowed_methods  = ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
+		    cached_methods   = ["GET", "HEAD"]
+		    target_origin_id = local.s3_origin_id
+		    forwarded_values {
+			query_string = false
+			cookies {
+			    forward = "none"
+			}
+		    }
+		    viewer_protocol_policy = "allow-all"
+		}
+		restrictions {
+		    geo_restriction {
+			restriction_type = "none"
+		    }
+		}
+		viewer_certificate {
+		    cloudfront_default_certificate = true
+	    }
+		connection {
+		    type     = "ssh"
+		    user     = "ec2-user"
+		    private_key = file("${var.ssh_key_name}.pem")
+		    host = aws_instance.MyWebServer.public_ip
+		}
+	    provisioner "remote-exec" {
+		inline = [
+		    "sudo su << EOF",
+		    "echo \"<img src='http://${self.domain_name}/${aws_s3_bucket_object.image_upload.key}' width='500' height='300'>\" >> /var/www/html/index.php",
+		    "EOF",	
+	       ]
+	    }
+	}
+	```
+
+
+- Delete the github repo to get the images to be uploaded to the web page and the public key file
+
+	```
+	resource "null_resource" "delete_downloaded_files" {
+	  depends_on = [
+		aws_s3_bucket_object.image_upload
+	    ]
+	  provisioner "local-exec" {
+	      when = destroy
+	      command = "sudo rm -rvf web_image public-ip.txt EC2KeyPair.pem"
+	  }
+	}
+	```
+
+
+- Print the public IP of the instance created above on the local
+
+	```
+	output "Instance_Public_IP" {
+		value = aws_instance.MyWebServer.public_ip
+	}
+	```
+- To initialize the terraform
+  - `$ terraform init`
+
+- To run the terraform configuration file for creating the complete infrastructure
+  `- $ terraform apply -auto-approve`
+     - after successfully runnning the above command we will see the below message:
+        ```
+        Apply complete! Resources: 13 added, 0 changed, 0 destroyed.
+
+        Outputs:
+
+        Instance_Public_IP = 13.126.246.125
+        ```
+- When we run the **13.126.246.125** on the brower
+
+
+- To destry the complete infrastructue, we can run below command
+  `$ terraform destroy -auto-approve`
