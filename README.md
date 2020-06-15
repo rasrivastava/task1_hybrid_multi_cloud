@@ -1,5 +1,5 @@
-/* 
 Task 1 : Have to create/launch Application using Terraform
+===========================================================
 
 1. Create the key and security group which allow the port 80.
 2. Launch EC2 instance.
@@ -9,7 +9,8 @@ Task 1 : Have to create/launch Application using Terraform
 6. Copy the github repo code into /var/www/html
 7. Create S3 bucket, and copy/deploy the images from github repo into the s3 bucket and change the permission to public readable.
 8 Create a Cloudfront using s3 bucket(which contains images) and use the Cloudfront URL to  update in code in /var/www/html
-*/
+
+- variable used in the main configuration file, user can edit as per there choice:
 
 ```
 $ cat variables.tf 
@@ -46,6 +47,8 @@ variable object_name {
 }
 ```
 
+- Script which will install the required packages for apache web server, PHP and git on the instance
+
 ```
 $ cat install_pkg_instance.sh 
 #!/bin/bash
@@ -54,6 +57,8 @@ sudo yum install httpd php git -y
 sudo systemctl restart httpd
 sudo systemctl enable httpd
 ```
+
+- Script which will format and mount the persistent volume and clone the web pages to the apache root directroy on the instance
 
 ```
 $ cat ebs_vol_operation.sh 
